@@ -8,6 +8,7 @@ using Moq;
 using Otus.Teaching.PromoCodeFactory.Core.Abstractions.Repositories;
 using Otus.Teaching.PromoCodeFactory.Core.Domain.PromoCodeManagement;
 using Otus.Teaching.PromoCodeFactory.WebHost.Controllers;
+using Otus.Teaching.PromoCodeFactory.WebHost.Models;
 using Xunit;
 
 namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
@@ -16,19 +17,24 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
     {
         private readonly Mock<IRepository<Partner>> _partnersRepositoryMock;
         private readonly PartnersController _partnersController;
+        //private readonly Mock<SetPartnerPromoCodeLimitRequest> _setPartnerPromoCodeLimitRequest;
 
         public CancelPartnerPromoCodeLimitAsyncTests()
         {
             var fixture = new Fixture().Customize(new AutoMoqCustomization());
             _partnersRepositoryMock = fixture.Freeze<Mock<IRepository<Partner>>>();
             _partnersController = fixture.Build<PartnersController>().OmitAutoProperties().Create();
+
+            var zz = fixture.Build<SetPartnerPromoCodeLimitRequest>()
+                .With(f => f.Limit, 10)
+                .With(f => f.EndDate, DateTime.Now);
         }
 
-        public Partner CreateBasePartner()
+        public Partner CreateBasePartner(string id = "def47943-7aaf-44a1-ae21-05aa4948b165")
         {
             var partner = new Partner()
             {
-                Id = Guid.Parse("7d994823-8226-4273-b063-1a95f3cc1df8"),
+                Id = Guid.Parse(id),
                 Name = "Суперигрушки",
                 IsActive = true,
                 PartnerLimits = new List<PartnerPromoCodeLimit>()
@@ -45,40 +51,114 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
 
             return partner;
         }
-        
+
         [Fact]
         public async void CancelPartnerPromoCodeLimitAsync_PartnerIsNotFound_ReturnsNotFound()
         {
             // Arrange
             var partnerId = Guid.Parse("def47943-7aaf-44a1-ae21-05aa4948b165");
             Partner partner = null;
-            
+
             _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partnerId))
                 .ReturnsAsync(partner);
 
             // Act
             var result = await _partnersController.CancelPartnerPromoCodeLimitAsync(partnerId);
- 
+
             // Assert
             result.Should().BeAssignableTo<NotFoundResult>();
         }
-        
+
         [Fact]
         public async void CancelPartnerPromoCodeLimitAsync_PartnerIsNotActive_ReturnsBadRequest()
         {
-            // Arrange
-            var partnerId = Guid.Parse("def47943-7aaf-44a1-ae21-05aa4948b165");
-            var partner = CreateBasePartner();
+            // Arrange без разницы какой id устанавливать
+            var partnerId = Guid.Parse("7d994823-8226-4273-b063-1a95f3cc1df8");
+            //var partnerId=Guid.Empty;
+            var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
             partner.IsActive = false;
-            
+
             _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partnerId))
                 .ReturnsAsync(partner);
 
             // Act
             var result = await _partnersController.CancelPartnerPromoCodeLimitAsync(partnerId);
- 
+
             // Assert
             result.Should().BeAssignableTo<BadRequestObjectResult>();
         }
+        //закончили CancelPartnerPromoCodeLimitAsync
+        //тестируем SetPartnerPromoCodeLimitAsync 
+
+        //Также есть функционал работы с партнерам, для партнера устанавливаются лимиты на выдачу промокодов, если лимит превышен или закончился срок его действия, то промокод нельзя выдать
+        //Если партнер не найден, то также нужно выдать ошибку 404;
+        [Fact]
+        public async void SetPartnerPromoCodeLimitAsync_PartnerIsNotFound_ReturnsNotFound()
+        {
+            // Arrange
+            var partnerId = Guid.Parse("def47943-7aaf-44a1-ae21-05aa4948b165");
+            Partner partner = null;
+            var partnerLimitRequest = new SetPartnerPromoCodeLimitRequest();
+
+            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partnerId))
+                .ReturnsAsync(partner);
+
+            // Act
+            var result = await _partnersController.SetPartnerPromoCodeLimitAsync(partnerId, partnerLimitRequest);
+
+
+            // Assert
+            result.Should().BeAssignableTo<NotFoundResult>();
+        }
+
+        //
+        [Fact]
+        public async void SetPartnerPromoCodeLimitAsync_PartnerIsNotActive_ReturnsBadRequest()
+        {
+            // Arrange без разницы какой id устанавливать
+            var partnerId = Guid.Parse("def47943-7aaf-44a1-ae21-05aa4948b165");
+            //var partnerId=Guid.Empty;
+            var partnerLimitRequest = new SetPartnerPromoCodeLimitRequest();
+            var partner = CreateBasePartner("def47943-7aaf-44a1-ae21-05aa4948b165");
+            partner.IsActive = false;
+
+
+            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partnerId))
+                .ReturnsAsync(partner);
+
+            // Act
+            var result = await _partnersController.SetPartnerPromoCodeLimitAsync(partnerId, partnerLimitRequest);
+
+            // Assert
+            result.Should().BeAssignableTo<BadRequestObjectResult>();
+        }
+
+        //Если партнеру выставляется лимит, то мы должны обнулить количество промокодов, которые партнер выдал NumberIssuedPromoCodes,
+        [Fact]
+        public async void SetPartnerPromoCodeLimitAsync_ResetPromocodes_LimitsOver()
+        {
+            // Arrange
+            var partnerId = Guid.Parse("7d994823-8226-4273-b063-1a95f3cc1df8");
+            var partnerLimitRequest = new SetPartnerPromoCodeLimitRequest();
+            var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
+            partnerLimitRequest.EndDate = DateTime.Now;
+            partnerLimitRequest.Limit = 100;
+
+            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partnerId))
+                .ReturnsAsync(partner);
+        }
+        // если лимит закончился, то количество не обнуляется;
+        [Fact]
+        public async void SetPartnerPromoCodeLimitAsync_ResetPromocodes_LimitsGood()
+        {
+        }
+
+
+        //При установке лимита нужно отключить предыдущий лимит;
+
+        //Лимит должен быть больше 0;
+
+        //Нужно убедиться, что сохранили новый лимит в базу данных (это нужно проверить Unit-тестом);
+        //Если в текущей реализации найдутся ошибки, то их нужно исправить и желательно написать тест, чтобы они больше не повторялись.
     }
 }
