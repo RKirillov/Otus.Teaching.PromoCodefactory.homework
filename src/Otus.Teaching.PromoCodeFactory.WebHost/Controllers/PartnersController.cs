@@ -142,7 +142,7 @@ namespace Otus.Teaching.PromoCodeFactory.WebHost.Controllers
             partner.PartnerLimits.Add(newLimit);
 
             await _partnersRepository.UpdateAsync(partner);
-
+            //return partner;
             return CreatedAtAction(nameof(GetPartnerLimitAsync), new { id = partner.Id, limitId = newLimit.Id }, null);
         }
     }

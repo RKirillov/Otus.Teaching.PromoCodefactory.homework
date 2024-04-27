@@ -1,10 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using AutoFixture;
 using AutoFixture.AutoMoq;
+using AutoFixture.Dsl;
+using AutoFixture.Xunit2;
+using Castle.Components.DictionaryAdapter.Xml;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
+using Namotion.Reflection;
 using Otus.Teaching.PromoCodeFactory.Core.Abstractions.Repositories;
 using Otus.Teaching.PromoCodeFactory.Core.Domain.PromoCodeManagement;
 using Otus.Teaching.PromoCodeFactory.WebHost.Controllers;
@@ -17,6 +22,7 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
     {
         private readonly Mock<IRepository<Partner>> _partnersRepositoryMock;
         private readonly PartnersController _partnersController;
+        private readonly SetPartnerPromoCodeLimitRequest _partnerLimitRequest;
         //private readonly Mock<SetPartnerPromoCodeLimitRequest> _setPartnerPromoCodeLimitRequest;
 
         public CancelPartnerPromoCodeLimitAsyncTests()
@@ -25,9 +31,10 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
             _partnersRepositoryMock = fixture.Freeze<Mock<IRepository<Partner>>>();
             _partnersController = fixture.Build<PartnersController>().OmitAutoProperties().Create();
 
-            var zz = fixture.Build<SetPartnerPromoCodeLimitRequest>()
+            //var someEntity = new Fixture().Build<Entity>().With(e => e.Name, "Important For Test").Without(e => e.Group).Create();
+            _partnerLimitRequest = fixture.Build<SetPartnerPromoCodeLimitRequest>()
                 .With(f => f.Limit, 10)
-                .With(f => f.EndDate, DateTime.Now);
+                .With(f => f.EndDate, DateTime.Now).Create();
         }
 
         public Partner CreateBasePartner(string id = "def47943-7aaf-44a1-ae21-05aa4948b165")
@@ -112,40 +119,44 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
         }
 
         //
-        [Fact]
-        public async void SetPartnerPromoCodeLimitAsync_PartnerIsNotActive_ReturnsBadRequest()
+        [Theory, AutoData]
+        public async void SetPartnerPromoCodeLimitAsync_PartnerIsNotActive_ReturnsBadRequest(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
-            // Arrange без разницы какой id устанавливать
-            var partnerId = Guid.Parse("def47943-7aaf-44a1-ae21-05aa4948b165");
-            //var partnerId=Guid.Empty;
-            var partnerLimitRequest = new SetPartnerPromoCodeLimitRequest();
+            //var partnerId = Guid.Parse("def47943-7aaf-44a1-ae21-05aa4948b165");
             var partner = CreateBasePartner("def47943-7aaf-44a1-ae21-05aa4948b165");
             partner.IsActive = false;
 
-
-            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partnerId))
+            //спрятать в autofixture
+            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partner.Id))
                 .ReturnsAsync(partner);
 
             // Act
-            var result = await _partnersController.SetPartnerPromoCodeLimitAsync(partnerId, partnerLimitRequest);
+            var result = await _partnersController.SetPartnerPromoCodeLimitAsync(partner.Id, partnerLimitRequest);
 
             // Assert
             result.Should().BeAssignableTo<BadRequestObjectResult>();
         }
 
         //Если партнеру выставляется лимит, то мы должны обнулить количество промокодов, которые партнер выдал NumberIssuedPromoCodes,
-        [Fact]
-        public async void SetPartnerPromoCodeLimitAsync_ResetPromocodes_LimitsOver()
+        //[Fact]
+        [Theory, AutoData]
+        public async void SetPartnerPromoCodeLimitAsync_ResetPromocodes_LimitsOver(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
             // Arrange
-            var partnerId = Guid.Parse("7d994823-8226-4273-b063-1a95f3cc1df8");
-            var partnerLimitRequest = new SetPartnerPromoCodeLimitRequest();
             var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
-            partnerLimitRequest.EndDate = DateTime.Now;
-            partnerLimitRequest.Limit = 100;
-
-            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partnerId))
+            partner.NumberIssuedPromoCodes = 100;
+            //спрятать в autofixture
+            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partner.Id))
                 .ReturnsAsync(partner);
+
+            // Act
+            var result = (await _partnersController.SetPartnerPromoCodeLimitAsync(partner.Id, partnerLimitRequest));
+
+            var zz = (result as CreatedAtActionResult).Value;
+            var zx = result.As<CreatedAtActionResult>();
+            var z= result.As<Partner>();
+            // Assert
+            //result.PartnerLimits.Select(x => x.Partner.NumberIssuedPromoCodes).First().Should().Be(0);
         }
         // если лимит закончился, то количество не обнуляется;
         [Fact]
