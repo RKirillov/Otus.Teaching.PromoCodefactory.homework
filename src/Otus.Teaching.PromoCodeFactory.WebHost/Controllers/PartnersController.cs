@@ -18,7 +18,7 @@ namespace Otus.Teaching.PromoCodeFactory.WebHost.Controllers
         : ControllerBase
     {
         private readonly IRepository<Partner> _partnersRepository;
-
+        public DateTime CurrentDateTime { get;  set; } = DateTime.Now;
         public PartnersController(IRepository<Partner> partnersRepository)
         {
             _partnersRepository = partnersRepository;
@@ -104,7 +104,7 @@ namespace Otus.Teaching.PromoCodeFactory.WebHost.Controllers
         public async Task<IActionResult> SetPartnerPromoCodeLimitAsync(Guid id, SetPartnerPromoCodeLimitRequest request)
         {
             var partner = await _partnersRepository.GetByIdAsync(id);
-
+            var z = DateTime.Now.ToString();
             if (partner == null)
                 return NotFound();
 
@@ -124,7 +124,7 @@ namespace Otus.Teaching.PromoCodeFactory.WebHost.Controllers
                 partner.NumberIssuedPromoCodes = 0;
 
                 //При установке лимита нужно отключить предыдущий лимит
-                activeLimit.CancelDate = DateTime.Now;
+                activeLimit.CancelDate = CurrentDateTime;
             }
 
             if (request.Limit <= 0)

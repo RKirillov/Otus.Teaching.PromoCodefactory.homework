@@ -12,6 +12,7 @@ using Otus.Teaching.PromoCodeFactory.Core.Domain.PromoCodeManagement;
 using Otus.Teaching.PromoCodeFactory.WebHost.Controllers;
 using Otus.Teaching.PromoCodeFactory.WebHost.Models;
 using Xunit;
+using YamlDotNet.Core;
 
 
 namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
@@ -20,20 +21,27 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
     {
         private readonly Mock<IRepository<Partner>> _partnersRepositoryMock;
         private readonly PartnersController _partnersController;
+        private readonly DateTime specificDateTime = new DateTime(2021, 5, 1, 21, 53, 30);
         //private readonly SetPartnerPromoCodeLimitRequest _partnerLimitRequest;
         //private readonly Mock<SetPartnerPromoCodeLimitRequest> _setPartnerPromoCodeLimitRequest;
 
         public CancelPartnerPromoCodeLimitAsyncTests()
         {
             //TODO не работает
-            var specificDateTime = new DateTime(2021, 5, 1, 21, 53, 30);
-            var fixture = new Fixture().Customize(new AutoMoqCustomization())
-                .Customize(new CustomDateTimeCustomization(specificDateTime));
-            fixture.Register<DateTime?>(() => specificDateTime);
+            //Func<DateTime> getDateTime = () => DateTime.Now;
+
+            var fixture = new Fixture().Customize(new AutoMoqCustomization());
+            //fixture.Inject(specificDateTime);
+            //fixture.Register<DateTime?>(() => specificDateTime);
+            //This means that every time we request an instance of a frozen type, we will get the same instance. You can think of it as registering a singleton instance in an IoC container.
             _partnersRepositoryMock = fixture.Freeze<Mock<IRepository<Partner>>>();
-            _partnersController = fixture.Build<PartnersController>().OmitAutoProperties().Create();
-
-
+            //Before creating the object, the Build method can be used to add one-time customizations to be used for the creation of the next variable.
+            _partnersController = fixture.Build<PartnersController>()
+                //The With construct allows the customization of writeable properties and public fields.
+                .With(x => x.CurrentDateTime, () => specificDateTime)
+                .OmitAutoProperties()
+                .Create();
+            //fixture.Register <DateTime>(() => specificDateTime);
             //var someEntity = new Fixture().Build<Entity>().With(e => e.Name, "Important For Test").Without(e => e.Group).Create();
             //_partnerLimitRequest = fixture.Build<SetPartnerPromoCodeLimitRequest>()
             //    .With(f => f.Limit, 10)
@@ -41,7 +49,7 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
 
         }
 
-        public Partner CreateBasePartner(string id = "def47943-7aaf-44a1-ae21-05aa4948b165", DateTime? cancelDate=null)
+        public Partner CreateBasePartner(string id = "def47943-7aaf-44a1-ae21-05aa4948b165", DateTime? cancelDate = null)
         {
             var partner = new Partner()
             {
@@ -160,9 +168,9 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
 
             // Assert
             result.Should().BeAssignableTo<Partner>();
-            result.PartnerLimits.Select(x => x.CancelDate).Should().Contain(It.IsNotNull<DateTime?>());
+            result.PartnerLimits.Select(x => x.CancelDate).Should().Contain(specificDateTime);
             result.NumberIssuedPromoCodes.Should().Be(0);
-  
+
         }
         // если лимит закончился, то количество не обнуляется;
         [Theory, AutoData]
@@ -185,40 +193,40 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
         }
 
 
-        //При установке лимита нужно отключить предыдущий лимит;
+        //Лимит должен быть больше 0;
         [Theory, AutoData]
-        public async void SetPartnerPromoCodeLimit_ResetPrevLimit_ReturnsDataCancel(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
+        public async void SetPartnerPromoCodeLimit_SaveNewLimit_LessZeroError(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
             // Arrange
             var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
-
-
-            var expectedPromocedes = partner.NumberIssuedPromoCodes = 100;
+            partnerLimitRequest.Limit = -1;
             _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partner.Id))
                 .ReturnsAsync(partner);
 
             // Act
-            var result = (await _partnersController.SetPartnerPromoCodeLimitAsync(partner.Id, partnerLimitRequest) as CreatedAtActionResult).Value as Partner;
+            var result = await _partnersController.SetPartnerPromoCodeLimitAsync(partner.Id, partnerLimitRequest);
 
+            //Assert
+            result.Should().BeAssignableTo<BadRequestObjectResult>();
         }
-        //Лимит должен быть больше 0;
+
 
         //Нужно убедиться, что сохранили новый лимит в базу данных (это нужно проверить Unit-тестом);
         //Если в текущей реализации найдутся ошибки, то их нужно исправить и желательно написать тест, чтобы они больше не повторялись.
-    }
-
-    public class CustomDateTimeCustomization : ICustomization
-    {
-        private readonly DateTime _specificDateTime;
-
-        public CustomDateTimeCustomization(DateTime specificDateTime)
+        [Theory, AutoData]
+        public async void SetPartnerPromoCodeLimit_SaveNewLimit_CheckUpdateSucces(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
-            _specificDateTime = specificDateTime;
-        }
-
-        public void Customize(IFixture fixture)
-        {
-            fixture.Register(() => _specificDateTime);
+            // Arrange
+            var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
+            partnerLimitRequest.Limit = 100;
+            _partnersRepositoryMock.Setup(repo => repo.GetByIdAsync(partner.Id))
+                .ReturnsAsync(partner);
+            
+            // Act
+            await _partnersController.SetPartnerPromoCodeLimitAsync(partner.Id, partnerLimitRequest);
+            
+            // Assert
+            _partnersRepositoryMock.Verify(repo => repo.UpdateAsync(It.IsAny<Partner>()), Times.Once);
         }
     }
 }
