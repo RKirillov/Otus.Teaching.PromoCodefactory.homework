@@ -104,7 +104,7 @@ namespace Otus.Teaching.PromoCodeFactory.WebHost.Controllers
         public async Task<IActionResult> SetPartnerPromoCodeLimitAsync(Guid id, SetPartnerPromoCodeLimitRequest request)
         {
             var partner = await _partnersRepository.GetByIdAsync(id);
-            var z = DateTime.Now.ToString();
+            //var z = DateTime.Now.ToString();
             if (partner == null)
                 return NotFound();
 

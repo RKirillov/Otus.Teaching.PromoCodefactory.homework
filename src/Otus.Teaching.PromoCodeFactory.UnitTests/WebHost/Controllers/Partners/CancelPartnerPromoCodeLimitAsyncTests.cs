@@ -108,7 +108,8 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
             result.Should().BeAssignableTo<BadRequestObjectResult>();
         }
 
-        //Если партнер не найден, то также нужно выдать ошибку 404;
+        /// SetPartnerPromoCodeLimitAsync
+
         [Fact]
         public async void SetPartnerPromoCodeLimit_PartnerIsNotFound_ReturnsNotFound()
         {
@@ -127,7 +128,7 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
             result.Should().BeAssignableTo<NotFoundResult>();
         }
 
-        //
+        //Если партнер заблокирован, то есть поле IsActive=false в классе Partner, то также нужно выдать ошибку 400;
         [Theory, AutoData]
         public async void SetPartnerPromoCodeLimit_PartnerIsNotActive_ReturnsBadRequest(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
@@ -147,9 +148,10 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
         }
 
         //Если партнеру выставляется лимит, то мы должны обнулить количество промокодов, которые партнер выдал NumberIssuedPromoCodes,
+        //При установке лимита нужно отключить предыдущий лимит
         //[Fact]
         [Theory, AutoData]
-        public async void SetPartnerPromoCodeLimit_ResetPromocodes_ReturnsZeroCountAndCancelDate(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
+        public async void SetPartnerPromoCodeLimit_SetNewLimit_ReturnsZeroPromocodesAndCancelDate(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
             // Arrange
             var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
@@ -161,7 +163,6 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
             // Act
             var result = (await _partnersController.SetPartnerPromoCodeLimitAsync(partner.Id, partnerLimitRequest) as CreatedAtActionResult).Value as Partner;
 
-
             // Assert
             result.Should().BeAssignableTo<Partner>();
             result.PartnerLimits.Select(x => x.CancelDate).Should().Contain(specificDateTime);
@@ -170,7 +171,7 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
         }
         // если лимит закончился, то количество не обнуляется;
         [Theory, AutoData]
-        public async void SetPartnerPromoCodeLimit_ResetPromocodes_ReturnsNotZeroCount(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
+        public async void SetPartnerPromoCodeLimit_SetNewLimit_ReturnsNotZeroPromocodes(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
             // Arrange
             var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8", DateTime.UtcNow);
@@ -182,7 +183,6 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
             // Act
             var result = (await _partnersController.SetPartnerPromoCodeLimitAsync(partner.Id, partnerLimitRequest) as CreatedAtActionResult).Value as Partner;
 
-
             // Assert
             result.Should().BeAssignableTo<Partner>();
             result.NumberIssuedPromoCodes.Should().Be(expectedPromocedes);
@@ -191,7 +191,7 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
 
         //Лимит должен быть больше 0;
         [Theory, AutoData]
-        public async void SetPartnerPromoCodeLimit_SaveNewLimit_ReturnsLessZeroError(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
+        public async void SetPartnerPromoCodeLimit_SetNewLimitLessZero_ReturnsBadRequest(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
             // Arrange
             var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
@@ -209,7 +209,7 @@ namespace Otus.Teaching.PromoCodeFactory.UnitTests.WebHost.Controllers.Partners
 
         //Нужно убедиться, что сохранили новый лимит в базу данных (это нужно проверить Unit-тестом);
         [Theory, AutoData]
-        public async void SetPartnerPromoCodeLimit_SaveNewLimit_VerifyUpdatePartner(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
+        public async void SetPartnerPromoCodeLimit_SetNewLimit_VerifyUpdatePartner(SetPartnerPromoCodeLimitRequest partnerLimitRequest)
         {
             // Arrange
             var partner = CreateBasePartner("7d994823-8226-4273-b063-1a95f3cc1df8");
